@@ -1,57 +1,37 @@
-<!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<!-- prices.html - صفحة تعديل الأسعار --><!DOCTYPE html><html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>تعديل الأسعار</title>
-  <style>
-    body {
-      font-family: sans-serif;
-      background: #f4f4f4;
-      padding: 20px;
-    }
-    h1 {
-      text-align: center;
-      color: #444;
-    }
-    .form {
-      display: flex;
-      flex-direction: column;
-      max-width: 400px;
-      margin: 0 auto;
-      gap: 10px;
-    }
-    input, button, select {
-      padding: 10px;
-      font-size: 1em;
-    }
-    .list {
-      margin-top: 30px;
-    }
-    .item {
-      background: white;
-      padding: 10px;
-      margin-bottom: 5px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-radius: 5px;
-    }
-  </style>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Edit Prices</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" />
 </head>
-<body>
-  <h1>تعديل الأسعار الأساسية</h1>
-  <div class="form">
-    <input type="text" id="newName" placeholder="اسم البضاعة الجديدة" />
-    <input type="number" id="newPrice" placeholder="سعر البضاعة" />
-    <button onclick="addPrice()">إضافة</button>
+<body class="bg-gray-100 text-gray-800 p-4">
+  <div class="max-w-md mx-auto">
+    <h1 class="text-2xl font-bold mb-4">🛠️ تعديل الأسعار</h1><form id="editForm" class="mb-6">
+  <div class="mb-2">
+    <label class="block">اسم المنتج</label>
+    <input type="text" id="productName" class="w-full p-2 border rounded" required />
   </div>
+  <div class="mb-2">
+    <label class="block">سعر الشراء</label>
+    <input type="number" id="buyPrice" class="w-full p-2 border rounded" required />
+  </div>
+  <div class="mb-4">
+    <label class="block">سعر البيع</label>
+    <input type="number" id="sellPrice" class="w-full p-2 border rounded" required />
+  </div>
+  <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded">💾 حفظ / تعديل</button>
+</form>
 
-  <div class="list" id="priceList"></div>
+<div>
+  <h2 class="text-lg font-semibold mb-2">🧾 قائمة الأسعار</h2>
+  <ul id="priceList" class="space-y-2"></ul>
+</div>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-    import { getDatabase, ref, get, set, update, onValue } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-database.js";
+  </div>  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getFirestore, doc, setDoc, getDoc, getDocs, collection } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyC-UjeJiOP2-hlD6gAQTKAUL_E_Ns5y0x0",
@@ -60,43 +40,48 @@
       storageBucket: "store-64757.appspot.com",
       messagingSenderId: "240047001550",
       appId: "1:240047001550:web:ed9577c48a975d11b7e59f",
-      databaseURL: "https://store-64757-default-rtdb.firebaseio.com"
+      measurementId: "G-FENZRL8FSF"
     };
 
     const app = initializeApp(firebaseConfig);
-    const db = getDatabase(app);
-    const pricesRef = ref(db, "prices");
+    const db = getFirestore(app);
+    const auth = getAuth(app);
 
-    const priceList = document.getElementById("priceList");
+    let currentUID = null;
 
-    function addPrice() {
-      const name = document.getElementById("newName").value.trim();
-      const price = parseInt(document.getElementById("newPrice").value);
-      if (!name || isNaN(price)) return;
-
-      update(pricesRef, { [name]: price }).then(() => {
-        document.getElementById("newName").value = "";
-        document.getElementById("newPrice").value = "";
-      });
-    }
-
-    onValue(pricesRef, (snapshot) => {
-      const data = snapshot.val() || {};
-      priceList.innerHTML = "";
-      for (const key in data) {
-        const div = document.createElement("div");
-        div.className = "item";
-        div.innerHTML = `
-          <span>${key} - ${data[key]} ل.س</span>
-          <button onclick="deletePrice('${key}')">حذف</button>
-        `;
-        priceList.appendChild(div);
+    onAuthStateChanged(auth, user => {
+      if (user) {
+        currentUID = user.uid;
+        loadPrices();
+      } else {
+        window.location.href = "index.html";
       }
     });
 
-    window.deletePrice = function(name) {
-      update(pricesRef, { [name]: null });
-    };
-  </script>
-</body>
+    document.getElementById("editForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const name = document.getElementById("productName").value.trim();
+      const buy = parseFloat(document.getElementById("buyPrice").value);
+      const sell = parseFloat(document.getElementById("sellPrice").value);
+      if (!name || isNaN(buy) || isNaN(sell)) return;
+
+      const ref = doc(db, `users/${currentUID}/prices`, name);
+      await setDoc(ref, { buy, sell });
+      document.getElementById("editForm").reset();
+      loadPrices();
+    });
+
+    async function loadPrices() {
+      const list = document.getElementById("priceList");
+      list.innerHTML = "";
+      const snapshot = await getDocs(collection(db, `users/${currentUID}/prices`));
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        const li = document.createElement("li");
+        li.className = "bg-white p-3 rounded shadow flex justify-between";
+        li.textContent = `${doc.id} | شراء: ${data.buy} | بيع: ${data.sell}`;
+        list.appendChild(li);
+      });
+    }
+  </script></body>
 </html>
