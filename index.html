@@ -3,179 +3,211 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Sales App - Main</title>
+<title>Sales App</title>
 <style>
-  body {
-    font-family: Arial, sans-serif;
-    background-color: white;
-    color: black;
-    margin: 20px;
-    padding: 0;
-  }
-  header {
-    display: flex;
-    justify-content: flex-end;
-  }
-  #menuBtn {
-    cursor: pointer;
-    font-size: 24px;
-    user-select: none;
-  }
-  #menu {
+  body { font-family: Arial, sans-serif; padding: 20px; background: #f9f9f9; }
+  .menu { position: fixed; top: 10px; right: 10px; }
+  .menu button { font-size: 20px; padding: 5px 10px; cursor: pointer; }
+  .menu-options {
     display: none;
+    background:#fff;
+    box-shadow: 0 0 5px rgba(0,0,0,0.3);
     position: absolute;
-    top: 40px;
-    right: 20px;
-    background: #eee;
-    border: 1px solid #ccc;
-    border-radius: 6px;
-    width: 180px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-    z-index: 10;
+    right: 0;
+    top: 35px;
+    border-radius: 4px;
+    padding: 5px 0;
   }
-  #menu a {
-    display: block;
-    padding: 10px 15px;
-    color: black;
-    text-decoration: none;
-  }
-  #menu a:hover {
-    background-color: #ddd;
-  }
-  label, select, input {
-    display: block;
-    margin: 10px 0;
-    font-size: 18px;
+  .menu-options button {
+    background: none;
+    border: none;
     width: 100%;
-    max-width: 300px;
-  }
-  button {
-    margin-top: 20px;
-    font-size: 18px;
-    padding: 10px 20px;
+    padding: 8px 12px;
     cursor: pointer;
+    text-align: left;
+    font-size: 14px;
+  }
+  .menu-options button:hover {
+    background: #eee;
+  }
+
+  .container {
+    max-width: 400px;
+    margin: 60px auto 0;
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 0 7px rgba(0,0,0,0.1);
+  }
+  label { display: block; margin: 12px 0 5px; }
+  select, input[type=number] {
+    width: 100%;
+    padding: 8px;
+    font-size: 16px;
+  }
+  .result {
+    margin-top: 20px;
+    font-weight: bold;
+  }
+  #saveSaleBtn {
+    margin-top: 25px;
+    width: 100%;
+    padding: 10px;
+    background: #007bff;
+    border: none;
+    color: white;
+    font-size: 18px;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  #saveSaleBtn:hover {
+    background: #0056b3;
   }
 </style>
 </head>
 <body>
-<header>
-  <div id="menuBtn">⋮</div>
-  <div id="menu">
-    <a href="sales.html">Edit Sales</a>
-    <a href="prices.html">Edit Prices</a>
-    <a href="#" id="toggleTheme">Toggle Dark Mode</a>
+
+<div class="menu">
+  <button id="menuBtn">☰</button>
+  <div id="menuOptions" class="menu-options">
+    <button onclick="location.href='prices.html'">Edit Prices</button>
+    <button onclick="location.href='sales.html'">View Sales</button>
+    <button id="toggleThemeBtn">Toggle Dark Mode</button>
   </div>
-</header>
+</div>
 
-<h1>Choose Product</h1>
+<div class="container">
+  <h2>Choose Product</h2>
+  <label for="productSelect">Product:</label>
+  <select id="productSelect">
+    <option value="">-- No products yet --</option>
+  </select>
 
-<label for="productSelect">Product:</label>
-<select id="productSelect"></select>
+  <label for="quantityInput">Quantity Sold:</label>
+  <input type="number" id="quantityInput" min="1" value="1" />
 
-<label for="quantityInput">Quantity:</label>
-<input type="number" id="quantityInput" min="1" value="1" />
+  <label for="totalSellPriceInput">Total Selling Price:</label>
+  <input type="number" id="totalSellPriceInput" min="0" step="0.01" value="0" />
 
-<label>Total Price:</label>
-<div id="totalPrice">0</div>
+  <div class="result" id="totalSale">Total Sale: 0</div>
+  <div class="result" id="totalProfit">Profit: 0</div>
 
-<label>Profit:</label>
-<div id="profit">0</div>
-
-<button id="saveBtn">Save Sale</button>
+  <button id="saveSaleBtn">Save Sale</button>
+</div>
 
 <script>
-// Data: load prices from localStorage or set default products
-let products = JSON.parse(localStorage.getItem('products')) || {
-  "Cola": {price: 7500, cost: 5000},
-  "Water": {price: 3000, cost: 1500},
-  "Chips": {price: 10999, cost: 7000}
-};
+  const menuBtn = document.getElementById('menuBtn');
+  const menuOptions = document.getElementById('menuOptions');
+  const toggleThemeBtn = document.getElementById('toggleThemeBtn');
 
-const productSelect = document.getElementById('productSelect');
-const quantityInput = document.getElementById('quantityInput');
-const totalPriceDiv = document.getElementById('totalPrice');
-const profitDiv = document.getElementById('profit');
-const saveBtn = document.getElementById('saveBtn');
+  const productSelect = document.getElementById('productSelect');
+  const quantityInput = document.getElementById('quantityInput');
+  const totalSellPriceInput = document.getElementById('totalSellPriceInput');
+  const totalSale = document.getElementById('totalSale');
+  const totalProfit = document.getElementById('totalProfit');
+  const saveSaleBtn = document.getElementById('saveSaleBtn');
 
-function populateProducts() {
-  productSelect.innerHTML = '';
-  for(let name in products){
-    let opt = document.createElement('option');
-    opt.value = name;
-    opt.textContent = name;
-    productSelect.appendChild(opt);
+  menuBtn.onclick = () => {
+    menuOptions.style.display = menuOptions.style.display === 'block' ? 'none' : 'block';
+  };
+
+  toggleThemeBtn.onclick = () => {
+    document.body.classList.toggle('dark-mode');
+  };
+
+  function loadPrices() {
+    const pricesJSON = localStorage.getItem('prices');
+    let prices = [];
+    if (pricesJSON) {
+      try {
+        prices = JSON.parse(pricesJSON);
+      } catch {
+        prices = [];
+      }
+    }
+    productSelect.innerHTML = '<option value="">-- Select Product --</option>';
+    prices.forEach((item, i) => {
+      productSelect.innerHTML += `<option value="${i}">${item.name}</option>`;
+    });
+    return prices;
   }
-}
 
-function updateTotals(){
-  const product = productSelect.value;
-  const quantity = Number(quantityInput.value);
-  if(products[product]){
-    const totalPrice = products[product].price * quantity;
-    const profit = (products[product].price - products[product].cost) * quantity;
-    totalPriceDiv.textContent = totalPrice.toLocaleString();
-    profitDiv.textContent = profit.toLocaleString();
-  } else {
-    totalPriceDiv.textContent = '0';
-    profitDiv.textContent = '0';
+  function updateCalculations() {
+    const prices = loadPrices();
+    const index = productSelect.value;
+    const quantity = Number(quantityInput.value);
+    const totalSellPrice = Number(totalSellPriceInput.value);
+
+    if (index === "" || quantity <= 0 || totalSellPrice <= 0) {
+      totalSale.textContent = "Total Sale: 0";
+      totalProfit.textContent = "Profit: 0";
+      return;
+    }
+
+    const costPrice = prices[index].price;
+    const sellPricePerUnit = totalSellPrice / quantity;
+    const profit = (sellPricePerUnit - costPrice) * quantity;
+
+    totalSale.textContent = `Total Sale: ${totalSellPrice.toFixed(2)}`;
+    totalProfit.textContent = `Profit: ${profit.toFixed(2)}`;
   }
-}
 
-function saveSale(){
-  const product = productSelect.value;
-  const quantity = Number(quantityInput.value);
-  if(quantity <= 0) {
-    alert("Quantity must be positive");
-    return;
+  function saveSale() {
+    const prices = loadPrices();
+    const index = productSelect.value;
+    const quantity = Number(quantityInput.value);
+    const totalSellPrice = Number(totalSellPriceInput.value);
+
+    if (index === "") {
+      alert("Please select a product.");
+      return;
+    }
+    if (quantity <= 0 || totalSellPrice <= 0) {
+      alert("Please enter valid quantity and total selling price.");
+      return;
+    }
+
+    const costPrice = prices[index].price;
+    const sellPricePerUnit = totalSellPrice / quantity;
+    const profit = (sellPricePerUnit - costPrice) * quantity;
+
+    const saleData = {
+      productName: prices[index].name,
+      quantity,
+      totalSellPrice,
+      costPrice,
+      profit,
+      time: new Date().toLocaleTimeString()
+    };
+
+    const today = new Date().toISOString().split('T')[0];
+    let salesToday = [];
+    const salesJSON = localStorage.getItem('sales-' + today);
+    if (salesJSON) {
+      try {
+        salesToday = JSON.parse(salesJSON);
+      } catch {
+        salesToday = [];
+      }
+    }
+
+    salesToday.push(saleData);
+    localStorage.setItem('sales-' + today, JSON.stringify(salesToday));
+    alert("Sale saved!");
+
+    quantityInput.value = 1;
+    totalSellPriceInput.value = 0;
+    updateCalculations();
   }
-  const today = new Date().toISOString().slice(0,10);
-  const salesData = JSON.parse(localStorage.getItem('sales')) || {};
-  if(!salesData[today]){
-    salesData[today] = [];
-  }
-  salesData[today].push({
-    product,
-    quantity,
-    price: products[product].price,
-    cost: products[product].cost,
-    timestamp: new Date().toISOString()
-  });
-  localStorage.setItem('sales', JSON.stringify(salesData));
-  alert("Sale saved!");
-  quantityInput.value = 1;
-  updateTotals();
-}
 
-// Menu toggle logic
-const menuBtn = document.getElementById('menuBtn');
-const menu = document.getElementById('menu');
-menuBtn.addEventListener('click', () => {
-  if(menu.style.display === 'block'){
-    menu.style.display = 'none';
-  } else {
-    menu.style.display = 'block';
-  }
-});
+  productSelect.onchange = updateCalculations;
+  quantityInput.oninput = updateCalculations;
+  totalSellPriceInput.oninput = updateCalculations;
+  saveSaleBtn.onclick = saveSale;
 
-// Dark mode toggle
-const toggleTheme = document.getElementById('toggleTheme');
-toggleTheme.addEventListener('click', () => {
-  if(document.body.style.backgroundColor === 'black'){
-    document.body.style.backgroundColor = 'white';
-    document.body.style.color = 'black';
-  } else {
-    document.body.style.backgroundColor = 'black';
-    document.body.style.color = 'white';
-  }
-  menu.style.display = 'none';
-});
-
-productSelect.addEventListener('change', updateTotals);
-quantityInput.addEventListener('input', updateTotals);
-saveBtn.addEventListener('click', saveSale);
-
-populateProducts();
-updateTotals();
+  loadPrices();
+  updateCalculations();
 </script>
+
 </body>
 </html>
