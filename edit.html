@@ -1,142 +1,110 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Edit Prices</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 20px;
-      background: #f0f0f0;
-    }
-    .container {
-      max-width: 500px;
-      margin: auto;
-      background: white;
-      padding: 20px;
-      border-radius: 10px;
-    }
-    input, button, select {
-      width: 100%;
-      padding: 10px;
-      margin-top: 10px;
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sales History</title>
+<style>
+  body { font-family: Arial, sans-serif; background: #f9f9f9; padding: 20px; }
+  h2 { margin-bottom: 15px; }
+  table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+  th, td { padding: 8px 12px; border: 1px solid #ddd; text-align: left; }
+  tr:nth-child(even) { background: #f2f2f2; }
+  #backBtn { margin-top: 20px; padding: 10px 15px; background: gray; color: white; border: none; border-radius: 4px; cursor: pointer; }
+  #backBtn:hover { background: #555; }
+</style>
 </head>
 <body>
-  <div class="container">
-    <h2>Edit Product Prices</h2>
 
-    <div id="auth-section">
-      <button id="login-btn">Sign in with Google</button>
-    </div>
+<h2>Sales History</h2>
 
-    <div id="edit-section" style="display:none;">
-      <select id="product-select">
-        <option value="">-- Select product --</option>
-      </select>
-      <input type="number" id="new-price" placeholder="New price (per unit)" />
-      <button onclick="updatePrice()">Update Price</button>
-      <input type="text" id="new-name" placeholder="New product name" />
-      <input type="number" id="new-name-price" placeholder="Price for new product" />
-      <button onclick="addProduct()">Add Product</button>
-    </div>
-  </div>
+<table id="salesTable">
+  <thead>
+    <tr>
+      <th>Date</th>
+      <th>Product</th>
+      <th>Quantity</th>
+      <th>Total Price</th>
+      <th>Profit</th>
+    </tr>
+  </thead>
+  <tbody>
+    <!-- البيانات رح تظهر هون -->
+  </tbody>
+</table>
 
-  <!-- Firebase SDK -->
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-    import { getFirestore, doc, getDoc, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+<button id="backBtn">Back to Sales</button>
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyC-UjeJiOP2-hlD6gAQTKAUL_E_Ns5y0x0",
-      authDomain: "store-64757.firebaseapp.com",
-      projectId: "store-64757",
-      storageBucket: "store-64757.appspot.com",
-      messagingSenderId: "240047001550",
-      appId: "1:240047001550:web:ed9577c48a975d11b7e59f",
-      measurementId: "G-FENZRL8FSF"
-    };
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 
-    const app = initializeApp(firebaseConfig);
-    const auth = getAuth(app);
-    const db = getFirestore(app);
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyC-UjeJiOP2-hlD6gAQTKAUL_E_Ns5y0x0",
+    authDomain: "store-64757.firebaseapp.com",
+    projectId: "store-64757",
+    storageBucket: "store-64757.firebasestorage.app",
+    messagingSenderId: "240047001550",
+    appId: "1:240047001550:web:ed9577c48a975d11b7e59f",
+    measurementId: "G-FENZRL8FSF"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db = firebase.firestore();
 
-    const loginBtn = document.getElementById("login-btn");
-    const authSection = document.getElementById("auth-section");
-    const editSection = document.getElementById("edit-section");
-    const productSelect = document.getElementById("product-select");
+  const salesTableBody = document.querySelector('#salesTable tbody');
+  const backBtn = document.getElementById('backBtn');
 
-    loginBtn.onclick = async () => {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-    };
+  let user;
 
-    onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        authSection.style.display = "none";
-        editSection.style.display = "block";
-        await loadProducts(user.uid);
-      } else {
-        authSection.style.display = "block";
-        editSection.style.display = "none";
-      }
-    });
+  backBtn.onclick = () => {
+    window.location.href = "index.html";
+  };
 
-    async function loadProducts(uid) {
-      const docRef = doc(db, "users", uid);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        const data = docSnap.data().prices || {};
-        productSelect.innerHTML = `<option value="">-- Select product --</option>`;
-        Object.keys(data).forEach(name => {
-          const option = document.createElement("option");
-          option.value = name;
-          option.textContent = name + " - " + data[name] + " ل.س";
-          productSelect.appendChild(option);
-        });
-      } else {
-        await setDoc(doc(db, "users", uid), { prices: {} });
-      }
+  auth.onAuthStateChanged(async (usr) => {
+    if (usr) {
+      user = usr;
+      loadSales();
+    } else {
+      window.location.href = "index.html";
     }
+  });
 
-    async function updatePrice() {
-      const uid = auth.currentUser.uid;
-      const name = productSelect.value;
-      const price = parseFloat(document.getElementById("new-price").value);
-      if (name && price) {
-        const docRef = doc(db, "users", uid);
-        const docSnap = await getDoc(docRef);
-        const data = docSnap.data().prices || {};
-        data[name] = price;
-        await updateDoc(docRef, { prices: data });
-        alert("Price updated");
-        loadProducts(uid);
-      } else {
-        alert("Select product and enter new price");
-      }
-    }
+  async function loadSales() {
+    salesTableBody.innerHTML = '<tr><td colspan="5">Loading sales...</td></tr>';
 
-    async function addProduct() {
-      const uid = auth.currentUser.uid;
-      const name = document.getElementById("new-name").value.trim();
-      const price = parseFloat(document.getElementById("new-name-price").value);
-      if (name && price) {
-        const docRef = doc(db, "users", uid);
-        const docSnap = await getDoc(docRef);
-        const data = docSnap.data().prices || {};
-        data[name] = price;
-        await updateDoc(docRef, { prices: data });
-        alert("Product added");
-        document.getElementById("new-name").value = "";
-        document.getElementById("new-name-price").value = "";
-        loadProducts(uid);
-      } else {
-        alert("Enter product name and price");
+    try {
+      const salesSnapshot = await db.collection('users').doc(user.uid).collection('sales').orderBy('date', 'desc').get();
+      if (salesSnapshot.empty) {
+        salesTableBody.innerHTML = '<tr><td colspan="5">No sales found.</td></tr>';
+        return;
       }
+
+      salesTableBody.innerHTML = '';
+      salesSnapshot.forEach(doc => {
+        const sale = doc.data();
+        const date = sale.date ? new Date(sale.date.seconds * 1000).toLocaleDateString() : '';
+        const product = sale.product || '';
+        const quantity = sale.quantity || 0;
+        const totalPrice = sale.totalPrice || 0;
+        const profit = sale.profit || 0;
+
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${date}</td>
+          <td>${product}</td>
+          <td>${quantity}</td>
+          <td>${totalPrice.toFixed(2)}</td>
+          <td>${profit.toFixed(2)}</td>
+        `;
+        salesTableBody.appendChild(row);
+      });
+    } catch (error) {
+      salesTableBody.innerHTML = `<tr><td colspan="5">Error loading sales: ${error.message}</td></tr>`;
     }
-  </script>
+  }
+</script>
+
 </body>
 </html>
