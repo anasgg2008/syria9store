@@ -1,60 +1,54 @@
-
-<!DOCTYPE html><html lang="en">
+<!DOCTYPE html>
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Edit Sales - Store</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Edit Prices</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      margin: 0;
-      padding: 1rem;
-      background-color: #f9f9f9;
+      padding: 20px;
+      background: #f0f0f0;
     }
-    h2 {
-      text-align: center;
-      color: #d40000;
-    }
-    .day-list, .sales-list {
-      max-width: 600px;
-      margin: 1rem auto;
-      background: #fff;
-      padding: 1rem;
+    .container {
+      max-width: 500px;
+      margin: auto;
+      background: white;
+      padding: 20px;
       border-radius: 10px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
     }
-    button {
-      background: #d40000;
-      color: #fff;
-      padding: 0.5rem 1rem;
-      border: none;
-      border-radius: 8px;
-      margin-top: 0.5rem;
-    }
-    select, input {
+    input, button, select {
       width: 100%;
-      padding: 0.5rem;
-      margin-top: 0.5rem;
-      margin-bottom: 1rem;
+      padding: 10px;
+      margin-top: 10px;
     }
   </style>
 </head>
 <body>
-  <h2>Edit Previous Sales</h2>
-  <div class="day-list">
-    <label for="daySelect">Select a day:</label>
-    <select id="daySelect"></select>
-    <button onclick="loadSales()">Load Sales</button>
-  </div>  <div class="sales-list" id="salesList">
-    <!-- Loaded sales go here -->
-  </div>  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-    import {
-      getFirestore, collection, doc, getDocs, updateDoc, deleteDoc
-    } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
-    import {
-      getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider
-    } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
+  <div class="container">
+    <h2>Edit Product Prices</h2>
+
+    <div id="auth-section">
+      <button id="login-btn">Sign in with Google</button>
+    </div>
+
+    <div id="edit-section" style="display:none;">
+      <select id="product-select">
+        <option value="">-- Select product --</option>
+      </select>
+      <input type="number" id="new-price" placeholder="New price (per unit)" />
+      <button onclick="updatePrice()">Update Price</button>
+      <input type="text" id="new-name" placeholder="New product name" />
+      <input type="number" id="new-name-price" placeholder="Price for new product" />
+      <button onclick="addProduct()">Add Product</button>
+    </div>
+  </div>
+
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+    import { getFirestore, doc, getDoc, setDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyC-UjeJiOP2-hlD6gAQTKAUL_E_Ns5y0x0",
@@ -67,67 +61,82 @@
     };
 
     const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
     const auth = getAuth(app);
+    const db = getFirestore(app);
 
-    let userId = null;
+    const loginBtn = document.getElementById("login-btn");
+    const authSection = document.getElementById("auth-section");
+    const editSection = document.getElementById("edit-section");
+    const productSelect = document.getElementById("product-select");
 
-    onAuthStateChanged(auth, (user) => {
+    loginBtn.onclick = async () => {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+    };
+
+    onAuthStateChanged(auth, async (user) => {
       if (user) {
-        userId = user.uid;
-        loadDays();
+        authSection.style.display = "none";
+        editSection.style.display = "block";
+        await loadProducts(user.uid);
       } else {
-        const provider = new GoogleAuthProvider();
-        signInWithPopup(auth, provider);
+        authSection.style.display = "block";
+        editSection.style.display = "none";
       }
     });
 
-    async function loadDays() {
-      const select = document.getElementById('daySelect');
-      const userSalesRef = collection(db, "users", userId, "sales");
-      const querySnapshot = await getDocs(userSalesRef);
-      select.innerHTML = '';
-      querySnapshot.forEach(doc => {
-        const option = document.createElement('option');
-        option.value = doc.id;
-        option.textContent = doc.id;
-        select.appendChild(option);
-      });
+    async function loadProducts(uid) {
+      const docRef = doc(db, "users", uid);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        const data = docSnap.data().prices || {};
+        productSelect.innerHTML = `<option value="">-- Select product --</option>`;
+        Object.keys(data).forEach(name => {
+          const option = document.createElement("option");
+          option.value = name;
+          option.textContent = name + " - " + data[name] + " ل.س";
+          productSelect.appendChild(option);
+        });
+      } else {
+        await setDoc(doc(db, "users", uid), { prices: {} });
+      }
     }
 
-    async function loadSales() {
-      const day = document.getElementById('daySelect').value;
-      const salesList = document.getElementById('salesList');
-      salesList.innerHTML = '';
-
-      const salesRef = collection(db, "users", userId, "sales", day, "items");
-      const querySnapshot = await getDocs(salesRef);
-
-      querySnapshot.forEach(docSnap => {
-        const data = docSnap.data();
-        const div = document.createElement('div');
-        div.innerHTML = `
-          <strong>${data.product}</strong> - Quantity: <input type="number" value="${data.quantity}" id="qty-${docSnap.id}"> 
-          <button onclick="updateSale('${day}', '${docSnap.id}')">Update</button>
-          <button onclick="deleteSale('${day}', '${docSnap.id}')">Delete</button>
-          <hr>
-        `;
-        salesList.appendChild(div);
-      });
+    async function updatePrice() {
+      const uid = auth.currentUser.uid;
+      const name = productSelect.value;
+      const price = parseFloat(document.getElementById("new-price").value);
+      if (name && price) {
+        const docRef = doc(db, "users", uid);
+        const docSnap = await getDoc(docRef);
+        const data = docSnap.data().prices || {};
+        data[name] = price;
+        await updateDoc(docRef, { prices: data });
+        alert("Price updated");
+        loadProducts(uid);
+      } else {
+        alert("Select product and enter new price");
+      }
     }
 
-    window.updateSale = async function(day, id) {
-      const qty = document.getElementById(`qty-${id}`).value;
-      const docRef = doc(db, "users", userId, "sales", day, "items", id);
-      await updateDoc(docRef, { quantity: parseInt(qty) });
-      alert("Updated successfully");
+    async function addProduct() {
+      const uid = auth.currentUser.uid;
+      const name = document.getElementById("new-name").value.trim();
+      const price = parseFloat(document.getElementById("new-name-price").value);
+      if (name && price) {
+        const docRef = doc(db, "users", uid);
+        const docSnap = await getDoc(docRef);
+        const data = docSnap.data().prices || {};
+        data[name] = price;
+        await updateDoc(docRef, { prices: data });
+        alert("Product added");
+        document.getElementById("new-name").value = "";
+        document.getElementById("new-name-price").value = "";
+        loadProducts(uid);
+      } else {
+        alert("Enter product name and price");
+      }
     }
-
-    window.deleteSale = async function(day, id) {
-      const docRef = doc(db, "users", userId, "sales", day, "items", id);
-      await deleteDoc(docRef);
-      alert("Deleted successfully");
-      loadSales();
-    }
-  </script></body>
+  </script>
+</body>
 </html>
