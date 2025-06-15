@@ -3,146 +3,150 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Edit Prices</title>
+<title>Sales App - Past Sales</title>
 <style>
-  body { font-family: Arial, sans-serif; background: #f0f0f0; padding: 20px; }
-  h2 { margin-bottom: 15px; }
-  .item { margin-bottom: 15px; background: white; padding: 10px; border-radius: 5px; }
-  label { display: block; margin-top: 5px; }
-  input[type="text"], input[type="number"] { width: 100%; padding: 7px; margin-top: 3px; box-sizing: border-box; }
-  button { margin-top: 10px; padding: 10px 15px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
-  button:hover { background: #0056b3; }
-  #addNew { margin-top: 20px; }
-  #backBtn { margin-top: 20px; background: gray; }
+  body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    background-color: white;
+    color: black;
+  }
+  header {
+    margin-bottom: 20px;
+  }
+  a.back {
+    text-decoration: none;
+    font-size: 18px;
+    color: blue;
+  }
+  select {
+    font-size: 18px;
+    margin-bottom: 20px;
+  }
+  table {
+    width: 100%;
+    max-width: 700px;
+    border-collapse: collapse;
+  }
+  th, td {
+    border: 1px solid #999;
+    padding: 8px;
+    text-align: left;
+  }
+  button {
+    cursor: pointer;
+    padding: 5px 10px;
+    font-size: 14px;
+  }
 </style>
 </head>
 <body>
+<header><a class="back" href="index.html">← Back to Sales</a></header>
 
-<h2>Edit Prices</h2>
+<h1>Past Sales</h1>
 
-<div id="pricesList"></div>
+<label for="dateSelect">Select Date:</label>
+<select id="dateSelect"></select>
 
-<button id="addNew">Add New Product</button>
-<button id="saveBtn">Save Changes</button>
-<button id="backBtn">Back to Sales</button>
-
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+<table>
+  <thead>
+    <tr>
+      <th>Product</th>
+      <th>Quantity</th>
+      <th>Price per unit</th>
+      <th>Cost per unit</th>
+      <th>Total Price</th>
+      <th>Profit</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+  <tbody id="salesTableBody"></tbody>
+</table>
 
 <script>
-  // Firebase config and initialization (نفس الإعدادات اللي استخدمناها قبل)
-  const firebaseConfig = {
-    apiKey: "AIzaSyC-UjeJiOP2-hlD6gAQTKAUL_E_Ns5y0x0",
-    authDomain: "store-64757.firebaseapp.com",
-    projectId: "store-64757",
-    storageBucket: "store-64757.firebasestorage.app",
-    messagingSenderId: "240047001550",
-    appId: "1:240047001550:web:ed9577c48a975d11b7e59f",
-    measurementId: "G-FENZRL8FSF"
-  };
-  firebase.initializeApp(firebaseConfig);
-  const auth = firebase.auth();
-  const db = firebase.firestore();
+const dateSelect = document.getElementById('dateSelect');
+const salesTableBody = document.getElementById('salesTableBody');
 
-  let user;
-  let prices = {};
+let salesData = JSON.parse(localStorage.getItem('sales')) || {};
 
-  // عناصر الواجهة
-  const pricesList = document.getElementById('pricesList');
-  const addNewBtn = document.getElementById('addNew');
-  const saveBtn = document.getElementById('saveBtn');
-  const backBtn = document.getElementById('backBtn');
-
-  // دالة تعرض المنتجات وأسعارها في الصفحة
-  function renderPrices() {
-    pricesList.innerHTML = '';
-    for (const product in prices) {
-      const itemDiv = document.createElement('div');
-      itemDiv.className = 'item';
-
-      itemDiv.innerHTML = `
-        <label>Product Name:
-          <input type="text" class="product-name" value="${product}" disabled />
-        </label>
-        <label>Sell Price:
-          <input type="number" class="sell-price" value="${prices[product].price}" />
-        </label>
-        <label>Buy Price:
-          <input type="number" class="buy-price" value="${prices[product].buyPrice}" />
-        </label>
-        <button class="deleteBtn">Delete</button>
-      `;
-
-      // زر الحذف
-      itemDiv.querySelector('.deleteBtn').onclick = () => {
-        delete prices[product];
-        renderPrices();
-      };
-
-      pricesList.appendChild(itemDiv);
-    }
+function populateDates() {
+  dateSelect.innerHTML = '';
+  const dates = Object.keys(salesData).sort().reverse();
+  if(dates.length === 0){
+    dateSelect.innerHTML = '<option>No sales recorded</option>';
+    salesTableBody.innerHTML = '';
+    return;
   }
+  for(const d of dates){
+    const opt = document.createElement('option');
+    opt.value = d;
+    opt.textContent = d;
+    dateSelect.appendChild(opt);
+  }
+  loadSalesForDate(dates[0]);
+}
 
-  // إضافة منتج جديد
-  addNewBtn.onclick = () => {
-    const newName = prompt("Enter new product name:");
-    if (newName && !prices[newName]) {
-      prices[newName] = { price: 0, buyPrice: 0 };
-      renderPrices();
-    } else if (prices[newName]) {
-      alert("Product already exists!");
-    }
-  };
-
-  // حفظ التغييرات على Firestore
-  saveBtn.onclick = async () => {
-    // تحديث الأسعار من الحقول
-    const items = document.querySelectorAll('.item');
-    const newPrices = {};
-    let valid = true;
-
-    items.forEach(item => {
-      const name = item.querySelector('.product-name').value.trim();
-      const sell = Number(item.querySelector('.sell-price').value);
-      const buy = Number(item.querySelector('.buy-price').value);
-      if (!name || isNaN(sell) || isNaN(buy)) valid = false;
-      else newPrices[name] = { price: sell, buyPrice: buy };
-    });
-
-    if (!valid) {
-      alert("Please enter valid product names and prices.");
-      return;
-    }
-
-    try {
-      await db.collection('users').doc(user.uid).collection('settings').doc('prices').set(newPrices);
-      alert('Prices saved successfully!');
-      prices = newPrices;
-    } catch (e) {
-      alert('Error saving prices: ' + e.message);
-    }
-  };
-
-  // العودة للصفحة الرئيسية
-  backBtn.onclick = () => {
-    window.location.href = "index.html";
-  };
-
-  // التحقق من تسجيل الدخول وجلب البيانات
-  auth.onAuthStateChanged(async (usr) => {
-    if (usr) {
-      user = usr;
-      const doc = await db.collection('users').doc(user.uid).collection('settings').doc('prices').get();
-      if (doc.exists) prices = doc.data();
-      else prices = {};
-      renderPrices();
-    } else {
-      // إعادة توجيه لتسجيل الدخول إذا غير مسجل
-      window.location.href = "index.html";
-    }
+function loadSalesForDate(date){
+  salesTableBody.innerHTML = '';
+  const sales = salesData[date] || [];
+  sales.forEach((sale, idx) => {
+    const tr = document.createElement('tr');
+    const totalPrice = sale.price * sale.quantity;
+    const profit = (sale.price - sale.cost) * sale.quantity;
+    tr.innerHTML = `
+      <td>${sale.product}</td>
+      <td><input type="number" min="1" value="${sale.quantity}" data-index="${idx}" /></td>
+      <td>${sale.price.toLocaleString()}</td>
+      <td>${sale.cost.toLocaleString()}</td>
+      <td>${totalPrice.toLocaleString()}</td>
+      <td>${profit.toLocaleString()}</td>
+      <td><button data-index="${idx}">Delete</button></td>
+    `;
+    salesTableBody.appendChild(tr);
   });
-</script>
+  addTableListeners(date);
+}
 
+function addTableListeners(date){
+  // Handle quantity changes
+  salesTableBody.querySelectorAll('input[type="number"]').forEach(input => {
+    input.addEventListener('change', e => {
+      const idx = e.target.getAttribute('data-index');
+      let newQty = Number(e.target.value);
+      if(newQty < 1 || isNaN(newQty)) {
+        alert("Quantity must be at least 1");
+        e.target.value = salesData[date][idx].quantity;
+        return;
+      }
+      salesData[date][idx].quantity = newQty;
+      localStorage.setItem('sales', JSON.stringify(salesData));
+      loadSalesForDate(date);
+    });
+  });
+
+  // Handle deletes
+  salesTableBody.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const idx = e.target.getAttribute('data-index');
+      if(confirm("Delete this sale?")){
+        salesData[date].splice(idx,1);
+        if(salesData[date].length === 0){
+          delete salesData[date];
+          populateDates();
+        } else {
+          localStorage.setItem('sales', JSON.stringify(salesData));
+          loadSalesForDate(date);
+        }
+      }
+    });
+  });
+}
+
+dateSelect.addEventListener('change', e => {
+  loadSalesForDate(e.target.value);
+});
+
+populateDates();
+</script>
 </body>
 </html>
