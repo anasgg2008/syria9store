@@ -1,88 +1,133 @@
+
 <!DOCTYPE html><html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Edit Prices</title>
+  <title>Edit Sales - Store</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      background-color: #f0f0f0;
-      padding: 20px;
+      margin: 0;
+      padding: 1rem;
+      background-color: #f9f9f9;
     }
-    h1 {
-      color: #c00;
+    h2 {
+      text-align: center;
+      color: #d40000;
     }
-    .item {
+    .day-list, .sales-list {
+      max-width: 600px;
+      margin: 1rem auto;
       background: #fff;
-      padding: 10px;
-      margin: 10px 0;
-      border-radius: 8px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    }
-    .item input {
-      width: 60px;
-      padding: 5px;
+      padding: 1rem;
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
     }
     button {
-      background: #c00;
+      background: #d40000;
       color: #fff;
+      padding: 0.5rem 1rem;
       border: none;
-      padding: 6px 12px;
-      border-radius: 5px;
-      cursor: pointer;
-      margin-left: 10px;
+      border-radius: 8px;
+      margin-top: 0.5rem;
     }
-    button:hover {
-      background: #900;
+    select, input {
+      width: 100%;
+      padding: 0.5rem;
+      margin-top: 0.5rem;
+      margin-bottom: 1rem;
     }
   </style>
 </head>
 <body>
-  <h1>🛠 Edit Prices</h1>
-  <div id="items"></div>
-  <input type="text" id="newName" placeholder="New item name" />
-  <input type="number" id="newPrice" placeholder="Price" />
-  <button onclick="addItem()">Add Item</button>  <script>
-    let prices = JSON.parse(localStorage.getItem("prices")) || {};
+  <h2>Edit Previous Sales</h2>
+  <div class="day-list">
+    <label for="daySelect">Select a day:</label>
+    <select id="daySelect"></select>
+    <button onclick="loadSales()">Load Sales</button>
+  </div>  <div class="sales-list" id="salesList">
+    <!-- Loaded sales go here -->
+  </div>  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+    import {
+      getFirestore, collection, doc, getDocs, updateDoc, deleteDoc
+    } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+    import {
+      getAuth, onAuthStateChanged, signInWithPopup, GoogleAuthProvider
+    } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-auth.js";
 
-    function renderItems() {
-      const container = document.getElementById("items");
-      container.innerHTML = "";
-      for (let name in prices) {
-        const div = document.createElement("div");
-        div.className = "item";
+    const firebaseConfig = {
+      apiKey: "AIzaSyC-UjeJiOP2-hlD6gAQTKAUL_E_Ns5y0x0",
+      authDomain: "store-64757.firebaseapp.com",
+      projectId: "store-64757",
+      storageBucket: "store-64757.appspot.com",
+      messagingSenderId: "240047001550",
+      appId: "1:240047001550:web:ed9577c48a975d11b7e59f",
+      measurementId: "G-FENZRL8FSF"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+
+    let userId = null;
+
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        userId = user.uid;
+        loadDays();
+      } else {
+        const provider = new GoogleAuthProvider();
+        signInWithPopup(auth, provider);
+      }
+    });
+
+    async function loadDays() {
+      const select = document.getElementById('daySelect');
+      const userSalesRef = collection(db, "users", userId, "sales");
+      const querySnapshot = await getDocs(userSalesRef);
+      select.innerHTML = '';
+      querySnapshot.forEach(doc => {
+        const option = document.createElement('option');
+        option.value = doc.id;
+        option.textContent = doc.id;
+        select.appendChild(option);
+      });
+    }
+
+    async function loadSales() {
+      const day = document.getElementById('daySelect').value;
+      const salesList = document.getElementById('salesList');
+      salesList.innerHTML = '';
+
+      const salesRef = collection(db, "users", userId, "sales", day, "items");
+      const querySnapshot = await getDocs(salesRef);
+
+      querySnapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        const div = document.createElement('div');
         div.innerHTML = `
-          <strong>${name}</strong> - 
-          <input type="number" value="${prices[name]}" onchange="updatePrice('${name}', this.value)" />
-          <button onclick="deleteItem('${name}')">Delete</button>
+          <strong>${data.product}</strong> - Quantity: <input type="number" value="${data.quantity}" id="qty-${docSnap.id}"> 
+          <button onclick="updateSale('${day}', '${docSnap.id}')">Update</button>
+          <button onclick="deleteSale('${day}', '${docSnap.id}')">Delete</button>
+          <hr>
         `;
-        container.appendChild(div);
-      }
+        salesList.appendChild(div);
+      });
     }
 
-    function updatePrice(name, value) {
-      prices[name] = Number(value);
-      localStorage.setItem("prices", JSON.stringify(prices));
+    window.updateSale = async function(day, id) {
+      const qty = document.getElementById(`qty-${id}`).value;
+      const docRef = doc(db, "users", userId, "sales", day, "items", id);
+      await updateDoc(docRef, { quantity: parseInt(qty) });
+      alert("Updated successfully");
     }
 
-    function deleteItem(name) {
-      delete prices[name];
-      localStorage.setItem("prices", JSON.stringify(prices));
-      renderItems();
+    window.deleteSale = async function(day, id) {
+      const docRef = doc(db, "users", userId, "sales", day, "items", id);
+      await deleteDoc(docRef);
+      alert("Deleted successfully");
+      loadSales();
     }
-
-    function addItem() {
-      const name = document.getElementById("newName").value.trim();
-      const price = Number(document.getElementById("newPrice").value);
-      if (name && price) {
-        prices[name] = price;
-        localStorage.setItem("prices", JSON.stringify(prices));
-        renderItems();
-        document.getElementById("newName").value = "";
-        document.getElementById("newPrice").value = "";
-      }
-    }
-
-    renderItems();
   </script></body>
 </html>
