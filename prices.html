@@ -1,152 +1,160 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar" dir="rtl">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Sales App - Past Sales</title>
-<style>
-  body {
-    font-family: Arial, sans-serif;
-    margin: 20px;
-    background-color: white;
-    color: black;
-  }
-  header {
-    margin-bottom: 20px;
-  }
-  a.back {
-    text-decoration: none;
-    font-size: 18px;
-    color: blue;
-  }
-  select {
-    font-size: 18px;
-    margin-bottom: 20px;
-  }
-  table {
-    width: 100%;
-    max-width: 700px;
-    border-collapse: collapse;
-  }
-  th, td {
-    border: 1px solid #999;
-    padding: 8px;
-    text-align: left;
-  }
-  button {
-    cursor: pointer;
-    padding: 5px 10px;
-    font-size: 14px;
-  }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>إضافة وتعديل المنتجات</title>
+  <style>
+    body {
+      background-color: #111;
+      color: white;
+      font-family: sans-serif;
+      padding: 20px;
+    }
+    input, button {
+      padding: 10px;
+      font-size: 18px;
+      margin: 10px 0;
+      width: 100%;
+      box-sizing: border-box;
+      border-radius: 8px;
+      border: none;
+    }
+    button {
+      background-color: #e74c3c;
+      color: white;
+      cursor: pointer;
+    }
+    .product-list {
+      margin-top: 30px;
+    }
+    .product-item {
+      border: 1px solid #444;
+      padding: 10px;
+      border-radius: 10px;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .product-item input {
+      width: 35%;
+      font-size: 16px;
+      padding: 5px;
+      border-radius: 6px;
+      border: none;
+      background-color: #222;
+      color: white;
+      text-align: center;
+    }
+    .actions button {
+      margin-left: 10px;
+      padding: 6px 12px;
+      font-size: 16px;
+      border-radius: 6px;
+      border: none;
+    }
+    .actions button.save {
+      background-color: #27ae60;
+      color: white;
+    }
+    .actions button.delete {
+      background-color: #c0392b;
+      color: white;
+    }
+  </style>
 </head>
 <body>
-<header><a class="back" href="index.html">← Back to Sales</a></header>
+  <h1>إضافة منتج جديد</h1>
+  <input type="text" id="name" placeholder="اسم المنتج" />
+  <input type="number" id="cost" placeholder="سعر الشراء" />
+  <button onclick="addProduct()">➕ إضافة</button>
 
-<h1>Past Sales</h1>
+  <h2>المنتجات الحالية</h2>
+  <div class="product-list" id="productList"></div>
 
-<label for="dateSelect">Select Date:</label>
-<select id="dateSelect"></select>
+  <script>
+    // تسجيل الدخول إجباري
+    if(localStorage.getItem("loggedIn") !== "true"){
+      window.location.href = "login.html";
+    }
 
-<table>
-  <thead>
-    <tr>
-      <th>Product</th>
-      <th>Quantity</th>
-      <th>Price per unit</th>
-      <th>Cost per unit</th>
-      <th>Total Price</th>
-      <th>Profit</th>
-      <th>Action</th>
-    </tr>
-  </thead>
-  <tbody id="salesTableBody"></tbody>
-</table>
+    let products = JSON.parse(localStorage.getItem("products")) || {};
 
-<script>
-const dateSelect = document.getElementById('dateSelect');
-const salesTableBody = document.getElementById('salesTableBody');
+    function saveProducts() {
+      localStorage.setItem("products", JSON.stringify(products));
+      renderProducts();
+    }
 
-let salesData = JSON.parse(localStorage.getItem('sales')) || {};
-
-function populateDates() {
-  dateSelect.innerHTML = '';
-  const dates = Object.keys(salesData).sort().reverse();
-  if(dates.length === 0){
-    dateSelect.innerHTML = '<option>No sales recorded</option>';
-    salesTableBody.innerHTML = '';
-    return;
-  }
-  for(const d of dates){
-    const opt = document.createElement('option');
-    opt.value = d;
-    opt.textContent = d;
-    dateSelect.appendChild(opt);
-  }
-  loadSalesForDate(dates[0]);
-}
-
-function loadSalesForDate(date){
-  salesTableBody.innerHTML = '';
-  const sales = salesData[date] || [];
-  sales.forEach((sale, idx) => {
-    const tr = document.createElement('tr');
-    const totalPrice = sale.price * sale.quantity;
-    const profit = (sale.price - sale.cost) * sale.quantity;
-    tr.innerHTML = `
-      <td>${sale.product}</td>
-      <td><input type="number" min="1" value="${sale.quantity}" data-index="${idx}" /></td>
-      <td>${sale.price.toLocaleString()}</td>
-      <td>${sale.cost.toLocaleString()}</td>
-      <td>${totalPrice.toLocaleString()}</td>
-      <td>${profit.toLocaleString()}</td>
-      <td><button data-index="${idx}">Delete</button></td>
-    `;
-    salesTableBody.appendChild(tr);
-  });
-  addTableListeners(date);
-}
-
-function addTableListeners(date){
-  // Handle quantity changes
-  salesTableBody.querySelectorAll('input[type="number"]').forEach(input => {
-    input.addEventListener('change', e => {
-      const idx = e.target.getAttribute('data-index');
-      let newQty = Number(e.target.value);
-      if(newQty < 1 || isNaN(newQty)) {
-        alert("Quantity must be at least 1");
-        e.target.value = salesData[date][idx].quantity;
+    function addProduct() {
+      const name = document.getElementById("name").value.trim();
+      const cost = parseInt(document.getElementById("cost").value);
+      if (!name || !cost || cost <= 0) {
+        alert("يرجى إدخال اسم المنتج وسعر الشراء صحيحين");
         return;
       }
-      salesData[date][idx].quantity = newQty;
-      localStorage.setItem('sales', JSON.stringify(salesData));
-      loadSalesForDate(date);
-    });
-  });
+      products[name] = { cost };
+      saveProducts();
+      document.getElementById("name").value = "";
+      document.getElementById("cost").value = "";
+    }
 
-  // Handle deletes
-  salesTableBody.querySelectorAll('button').forEach(btn => {
-    btn.addEventListener('click', e => {
-      const idx = e.target.getAttribute('data-index');
-      if(confirm("Delete this sale?")){
-        salesData[date].splice(idx,1);
-        if(salesData[date].length === 0){
-          delete salesData[date];
-          populateDates();
-        } else {
-          localStorage.setItem('sales', JSON.stringify(salesData));
-          loadSalesForDate(date);
-        }
+    function deleteProduct(name) {
+      if(confirm(`هل أنت متأكد من حذف المنتج "${name}"؟`)){
+        delete products[name];
+        saveProducts();
       }
-    });
-  });
-}
+    }
 
-dateSelect.addEventListener('change', e => {
-  loadSalesForDate(e.target.value);
-});
+    function updateProduct(name, costInput) {
+      const cost = parseInt(costInput.value);
+      if (!cost || cost <= 0) {
+        alert("يرجى إدخال سعر شراء صحيح");
+        return;
+      }
+      products[name] = { cost };
+      saveProducts();
+    }
 
-populateDates();
-</script>
+    function renderProducts() {
+      const list = document.getElementById("productList");
+      list.innerHTML = "";
+      for (let name in products) {
+        const item = document.createElement("div");
+        item.className = "product-item";
+
+        const nameSpan = document.createElement("strong");
+        nameSpan.textContent = name;
+
+        const costInput = document.createElement("input");
+        costInput.type = "number";
+        costInput.value = products[name].cost;
+
+        const actions = document.createElement("div");
+        actions.className = "actions";
+
+        const saveBtn = document.createElement("button");
+        saveBtn.textContent = "💾 حفظ";
+        saveBtn.className = "save";
+        saveBtn.onclick = () => updateProduct(name, costInput);
+
+        const deleteBtn = document.createElement("button");
+        deleteBtn.textContent = "🗑 حذف";
+        deleteBtn.className = "delete";
+        deleteBtn.onclick = () => deleteProduct(name);
+
+        actions.appendChild(saveBtn);
+        actions.appendChild(deleteBtn);
+
+        item.appendChild(nameSpan);
+        item.appendChild(costInput);
+        item.appendChild(actions);
+
+        list.appendChild(item);
+      }
+    }
+
+    renderProducts();
+  </script>
 </body>
 </html>
