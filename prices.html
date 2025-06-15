@@ -1,87 +1,148 @@
-<!-- prices.html - صفحة تعديل الأسعار --><!DOCTYPE html><html lang="en">
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Edit Prices</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" />
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Edit Prices</title>
+<style>
+  body { font-family: Arial, sans-serif; background: #f0f0f0; padding: 20px; }
+  h2 { margin-bottom: 15px; }
+  .item { margin-bottom: 15px; background: white; padding: 10px; border-radius: 5px; }
+  label { display: block; margin-top: 5px; }
+  input[type="text"], input[type="number"] { width: 100%; padding: 7px; margin-top: 3px; box-sizing: border-box; }
+  button { margin-top: 10px; padding: 10px 15px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; }
+  button:hover { background: #0056b3; }
+  #addNew { margin-top: 20px; }
+  #backBtn { margin-top: 20px; background: gray; }
+</style>
 </head>
-<body class="bg-gray-100 text-gray-800 p-4">
-  <div class="max-w-md mx-auto">
-    <h1 class="text-2xl font-bold mb-4">🛠️ تعديل الأسعار</h1><form id="editForm" class="mb-6">
-  <div class="mb-2">
-    <label class="block">اسم المنتج</label>
-    <input type="text" id="productName" class="w-full p-2 border rounded" required />
-  </div>
-  <div class="mb-2">
-    <label class="block">سعر الشراء</label>
-    <input type="number" id="buyPrice" class="w-full p-2 border rounded" required />
-  </div>
-  <div class="mb-4">
-    <label class="block">سعر البيع</label>
-    <input type="number" id="sellPrice" class="w-full p-2 border rounded" required />
-  </div>
-  <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded">💾 حفظ / تعديل</button>
-</form>
+<body>
 
-<div>
-  <h2 class="text-lg font-semibold mb-2">🧾 قائمة الأسعار</h2>
-  <ul id="priceList" class="space-y-2"></ul>
-</div>
+<h2>Edit Prices</h2>
 
-  </div>  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-    import { getFirestore, doc, setDoc, getDoc, getDocs, collection } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-    import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+<div id="pricesList"></div>
 
-    const firebaseConfig = {
-      apiKey: "AIzaSyC-UjeJiOP2-hlD6gAQTKAUL_E_Ns5y0x0",
-      authDomain: "store-64757.firebaseapp.com",
-      projectId: "store-64757",
-      storageBucket: "store-64757.appspot.com",
-      messagingSenderId: "240047001550",
-      appId: "1:240047001550:web:ed9577c48a975d11b7e59f",
-      measurementId: "G-FENZRL8FSF"
-    };
+<button id="addNew">Add New Product</button>
+<button id="saveBtn">Save Changes</button>
+<button id="backBtn">Back to Sales</button>
 
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    const auth = getAuth(app);
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 
-    let currentUID = null;
+<script>
+  // Firebase config and initialization (نفس الإعدادات اللي استخدمناها قبل)
+  const firebaseConfig = {
+    apiKey: "AIzaSyC-UjeJiOP2-hlD6gAQTKAUL_E_Ns5y0x0",
+    authDomain: "store-64757.firebaseapp.com",
+    projectId: "store-64757",
+    storageBucket: "store-64757.firebasestorage.app",
+    messagingSenderId: "240047001550",
+    appId: "1:240047001550:web:ed9577c48a975d11b7e59f",
+    measurementId: "G-FENZRL8FSF"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db = firebase.firestore();
 
-    onAuthStateChanged(auth, user => {
-      if (user) {
-        currentUID = user.uid;
-        loadPrices();
-      } else {
-        window.location.href = "index.html";
-      }
-    });
+  let user;
+  let prices = {};
 
-    document.getElementById("editForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const name = document.getElementById("productName").value.trim();
-      const buy = parseFloat(document.getElementById("buyPrice").value);
-      const sell = parseFloat(document.getElementById("sellPrice").value);
-      if (!name || isNaN(buy) || isNaN(sell)) return;
+  // عناصر الواجهة
+  const pricesList = document.getElementById('pricesList');
+  const addNewBtn = document.getElementById('addNew');
+  const saveBtn = document.getElementById('saveBtn');
+  const backBtn = document.getElementById('backBtn');
 
-      const ref = doc(db, `users/${currentUID}/prices`, name);
-      await setDoc(ref, { buy, sell });
-      document.getElementById("editForm").reset();
-      loadPrices();
-    });
+  // دالة تعرض المنتجات وأسعارها في الصفحة
+  function renderPrices() {
+    pricesList.innerHTML = '';
+    for (const product in prices) {
+      const itemDiv = document.createElement('div');
+      itemDiv.className = 'item';
 
-    async function loadPrices() {
-      const list = document.getElementById("priceList");
-      list.innerHTML = "";
-      const snapshot = await getDocs(collection(db, `users/${currentUID}/prices`));
-      snapshot.forEach(doc => {
-        const data = doc.data();
-        const li = document.createElement("li");
-        li.className = "bg-white p-3 rounded shadow flex justify-between";
-        li.textContent = `${doc.id} | شراء: ${data.buy} | بيع: ${data.sell}`;
-        list.appendChild(li);
-      });
+      itemDiv.innerHTML = `
+        <label>Product Name:
+          <input type="text" class="product-name" value="${product}" disabled />
+        </label>
+        <label>Sell Price:
+          <input type="number" class="sell-price" value="${prices[product].price}" />
+        </label>
+        <label>Buy Price:
+          <input type="number" class="buy-price" value="${prices[product].buyPrice}" />
+        </label>
+        <button class="deleteBtn">Delete</button>
+      `;
+
+      // زر الحذف
+      itemDiv.querySelector('.deleteBtn').onclick = () => {
+        delete prices[product];
+        renderPrices();
+      };
+
+      pricesList.appendChild(itemDiv);
     }
-  </script></body>
+  }
+
+  // إضافة منتج جديد
+  addNewBtn.onclick = () => {
+    const newName = prompt("Enter new product name:");
+    if (newName && !prices[newName]) {
+      prices[newName] = { price: 0, buyPrice: 0 };
+      renderPrices();
+    } else if (prices[newName]) {
+      alert("Product already exists!");
+    }
+  };
+
+  // حفظ التغييرات على Firestore
+  saveBtn.onclick = async () => {
+    // تحديث الأسعار من الحقول
+    const items = document.querySelectorAll('.item');
+    const newPrices = {};
+    let valid = true;
+
+    items.forEach(item => {
+      const name = item.querySelector('.product-name').value.trim();
+      const sell = Number(item.querySelector('.sell-price').value);
+      const buy = Number(item.querySelector('.buy-price').value);
+      if (!name || isNaN(sell) || isNaN(buy)) valid = false;
+      else newPrices[name] = { price: sell, buyPrice: buy };
+    });
+
+    if (!valid) {
+      alert("Please enter valid product names and prices.");
+      return;
+    }
+
+    try {
+      await db.collection('users').doc(user.uid).collection('settings').doc('prices').set(newPrices);
+      alert('Prices saved successfully!');
+      prices = newPrices;
+    } catch (e) {
+      alert('Error saving prices: ' + e.message);
+    }
+  };
+
+  // العودة للصفحة الرئيسية
+  backBtn.onclick = () => {
+    window.location.href = "index.html";
+  };
+
+  // التحقق من تسجيل الدخول وجلب البيانات
+  auth.onAuthStateChanged(async (usr) => {
+    if (usr) {
+      user = usr;
+      const doc = await db.collection('users').doc(user.uid).collection('settings').doc('prices').get();
+      if (doc.exists) prices = doc.data();
+      else prices = {};
+      renderPrices();
+    } else {
+      // إعادة توجيه لتسجيل الدخول إذا غير مسجل
+      window.location.href = "index.html";
+    }
+  });
+</script>
+
+</body>
 </html>
